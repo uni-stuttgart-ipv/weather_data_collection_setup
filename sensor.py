@@ -39,6 +39,33 @@ if Adafruit_ADS1x15 is not None:
         print(f"Failed to initialize ADS1115 at {hex(ADS1115_I2C_ADDR)} on bus {ADS1115_BUSNUM}: {e}")
         ads_hardware_available = False
 
+# MAX31865 config (PT100 RTD, 4-wire, SPI)
+MAX31865_RTD_NOMINAL = 100.0    # PT100
+MAX31865_REF_RESISTOR = 430.0   # 430 ohm for PT100
+MAX31865_WIRES = 4
+
+rtd_hardware_available = False
+rtd = None
+
+try:
+    import board
+    import busio
+    import digitalio
+    import adafruit_max31865
+
+    _spi = busio.SPI(clock=board.SCK, MISO=board.MISO, MOSI=board.MOSI)
+    _cs = digitalio.DigitalInOut(board.D5)
+    rtd = adafruit_max31865.MAX31865(
+        _spi, _cs,
+        rtd_nominal=MAX31865_RTD_NOMINAL,
+        ref_resistor=MAX31865_REF_RESISTOR,
+        wires=MAX31865_WIRES,
+    )
+    rtd_hardware_available = True
+except Exception as e:
+    print(f"Failed to initialize MAX31865: {e}")
+    rtd_hardware_available = False
+
 # fake data generator just for test purpose 
 def fake_irradiance():
     return round(random.uniform(0, 1000), 2)
@@ -49,6 +76,8 @@ def fake_apogee_irradiance():
 def fake_temperature():
     return round(random.uniform(15, 35), 2)
 
+def fake_rtd_temperature():
+    return round(random.uniform(15, 35), 2)
 
 def fake_humidity():
     return round(random.uniform(20, 90), 2)
@@ -58,6 +87,7 @@ def read_all_sensors_fake():
         "Irr": fake_irradiance(),
         "PyroIrr": fake_apogee_irradiance(),
         "AmbTemp": fake_temperature(),
+        "PT100": fake_rtd_temperature(),
         "AmbHmd": fake_humidity(),
     }
 
@@ -115,12 +145,28 @@ def measure_apogee_irradiance():
         print(f"Pyranometer (ADS1115 ch1) read error: {e}")
         return None
 
+def measure_rtd_temperature():
+    if not rtd_hardware_available:
+        return None
+    try:
+        temp = rtd.temperature
+        fault = rtd.fault   # tuple of 6 booleans, all False when healthy
+        if any(fault):
+            print(f"MAX31865 fault detected: {fault}")
+            rtd.clear_faults()
+            return None
+        return round(temp, 2)
+    except Exception as e:
+        print(f"MAX31865 read error: {e}")
+        return None
+
 def read_all_sensors_real():
     temp_c, humidity = read_gy21()
     return {
         "Irr": measure_irradiance(),
         "PyroIrr": measure_apogee_irradiance(),
         "AmbTemp": temp_c,
+        "PT100": measure_rtd_temperature(),
         "AmbHmd": humidity,
     }
 

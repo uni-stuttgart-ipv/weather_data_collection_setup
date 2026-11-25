@@ -3,7 +3,6 @@ import time
 import datetime
 import logging
 import paho.mqtt.client as mqtt
-
 from sensor import read_all_sensors
 
 MQTT_BROKER_HOST = "localhost"
@@ -69,6 +68,7 @@ def build_payload(sensor_data):
         "Irr": sensor_data["Irr"],
         "PyroIrr": sensor_data["PyroIrr"],
         "AmbTemp": sensor_data["AmbTemp"],
+        "PT100": sensor_data["PT100"],
         "AmbHmd": sensor_data["AmbHmd"],
     }
 
